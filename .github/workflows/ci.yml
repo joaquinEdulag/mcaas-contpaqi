@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Typecheck, test and build
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm and Node.js
+        uses: pnpm/setup@v2
+        with:
+          version: 11.24.0
+          runtime: node@24.20.0
+          cache: false
+          require-lockfile: false
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Verify project
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

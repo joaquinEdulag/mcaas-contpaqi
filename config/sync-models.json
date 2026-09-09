@@ -1,0 +1,12 @@
+[
+  {
+    "key": "example_customers",
+    "enabled": false,
+    "schemaVersion": 1,
+    "destinationPath": "customers",
+    "queryFile": "queries/example-customers.sql",
+    "cursorColumn": "id",
+    "sourceIdColumn": "id",
+    "initialCursor": 0
+  }
+]

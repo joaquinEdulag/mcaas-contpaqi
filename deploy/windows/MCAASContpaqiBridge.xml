@@ -1,0 +1,30 @@
+<service>
+  <id>MCAASContpaqiBridge</id>
+  <name>MCAAS - CONTPAQi Bridge</name>
+  <description>Servicio de integración de datos MySQL/CONTPAQi hacia MCAAS por HTTP(S).</description>
+
+  <executable>%BASE%\runtime\node.exe</executable>
+  <arguments>--env-file=&quot;%BASE%\.env&quot; &quot;%BASE%\app\dist\main.js&quot;</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+
+  <serviceaccount>
+    <domain>NT AUTHORITY</domain>
+    <user>LocalService</user>
+  </serviceaccount>
+
+  <stoptimeout>30sec</stoptimeout>
+  <stopparentprocessfirst>true</stopparentprocessfirst>
+
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <resetfailure>1 hour</resetfailure>
+
+  <logpath>%BASE%\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>10</keepFiles>
+  </log>
+</service>

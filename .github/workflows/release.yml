@@ -1,0 +1,55 @@
+name: Release Windows package
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    name: Build and publish Windows x64 package
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm and Node.js
+        uses: pnpm/setup@v2
+        with:
+          version: 11.24.0
+          runtime: node@24.20.0
+          cache: false
+          require-lockfile: false
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Verify project
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Package Windows service
+        shell: pwsh
+        run: ./scripts/package-windows.ps1 -Version '${{ github.ref_name }}' -SkipBuild
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Tag = '${{ github.ref_name }}'
+          gh release create $Tag --title $Tag --generate-notes
+          if ($LASTEXITCODE -ne 0) { throw 'No fue posible crear el GitHub Release.' }
+
+          Get-ChildItem './artifacts' -File |
+            Where-Object { $_.Name -like '*.zip' -or $_.Name -like '*.sha256' } |
+            ForEach-Object {
+              gh release upload $Tag $_.FullName
+              if ($LASTEXITCODE -ne 0) { throw "No fue posible subir $($_.Name)." }
+            }
