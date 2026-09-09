@@ -1,9 +1,9 @@
 [
   {
-    "key": "example_customers",
-    "enabled": false,
+    "key": "prueba",
+    "enabled": true,
     "schemaVersion": 1,
-    "destinationPath": "customers",
+    "destinationPath": "/",
     "queryFile": "queries/example-customers.sql",
     "cursorColumn": "id",
     "sourceIdColumn": "id",
