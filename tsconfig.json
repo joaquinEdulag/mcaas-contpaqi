@@ -8,6 +8,9 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "target": "ES2023",
+    "types": [
+      "node"
+    ],
     "sourceMap": true,
     "outDir": "./dist",
     "incremental": true,
