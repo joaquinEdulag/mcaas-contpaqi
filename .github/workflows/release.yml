@@ -34,7 +34,7 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Package Windows service
+      - name: Package Windows foreground console
         shell: pwsh
         run: ./scripts/package-windows.ps1 -Version '${{ github.ref_name }}' -SkipBuild
 

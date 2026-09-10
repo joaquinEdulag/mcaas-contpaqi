@@ -1,18 +1,45 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, readdir } from 'node:fs/promises';
 
 const requiredFiles = [
   '.env.example',
   'config/sync-models.json',
   'queries/employees.sql',
-  'deploy/windows/MCAASContpaqiBridge.xml',
-  'deploy/windows/install-service.ps1',
   'scripts/package-windows.ps1',
   'src/main.ts',
   'src/app.module.ts',
   'src/database/sqlserver.service.ts',
+  'src/logging/persistent-logger.ts',
+  'deploy/windows/MCAAS.cmd',
+  'deploy/windows/console-host.ps1',
+  'deploy/windows/test-config.cmd',
+  'deploy/windows/test-connections.cmd',
+  'deploy/windows/status.cmd',
+  'deploy/windows/view-errors.cmd',
+  'deploy/windows/open-log-folder.cmd',
+  'deploy/windows/reset-checkpoint.cmd',
+  'deploy/windows/README-WINDOWS.txt',
+  'deploy/windows/install-autostart.cmd',
+  'deploy/windows/remove-autostart.cmd',
+  'deploy/windows/diagnostico.cmd',
+  'deploy/windows/diagnostico.ps1',
 ];
 
 for (const file of requiredFiles) await access(file);
+
+const windowsFiles = await readdir('deploy/windows');
+for (const forbidden of [
+  'MCAASContpaqiBridge.xml',
+  'install-service.ps1',
+  'uninstall-service.ps1',
+  'start-service.ps1',
+  'stop-service.ps1',
+  'status-service.ps1',
+  'update-service.ps1',
+]) {
+  if (windowsFiles.includes(forbidden)) {
+    throw new Error(`La arquitectura de consola no debe contener ${forbidden}.`);
+  }
+}
 
 const tsconfig = JSON.parse(await readFile('tsconfig.json', 'utf8'));
 const configuredTypes = tsconfig?.compilerOptions?.types;
@@ -55,8 +82,43 @@ for (const key of [
   'DESTINATION_BASE_URL=',
   'SYNC_ENABLED=',
   'SYNC_MODELS=employees',
+  'LOG_DIRECTORY=',
 ]) {
   if (!env.includes(key)) throw new Error(`.env.example no contiene ${key}`);
 }
 
-console.log('OK: proyecto SQL Server/CONTPAQi Empleados verificado.');
+const packageScript = await readFile('scripts/package-windows.ps1', 'utf8');
+for (const token of [
+  "deploy\\windows\\*",
+  'runtime',
+  'node-v',
+  'No WinSW',
+  'MCAAS.cmd',
+]) {
+  if (!packageScript.includes(token)) {
+    throw new Error(`scripts/package-windows.ps1 no contiene ${token}.`);
+  }
+}
+for (const forbidden of ['WinSW-x64.exe', 'MCAASContpaqiBridge.exe', 'install-service.ps1']) {
+  if (packageScript.includes(forbidden)) {
+    throw new Error(`El empaquetado de consola no debe depender de ${forbidden}.`);
+  }
+}
+
+const host = await readFile('deploy/windows/console-host.ps1', 'utf8');
+for (const token of [
+  'mcaas-console.lock',
+  'console-host.log',
+  'while ($true)',
+  'runtime\\node.exe',
+  'check-config.js',
+]) {
+  if (!host.includes(token)) throw new Error(`console-host.ps1 no contiene ${token}.`);
+}
+
+const loggerSource = await readFile('src/logging/persistent-logger.ts', 'utf8');
+for (const token of ["dailyPath('mcaas')", "dailyPath('errors')", 'LOG_DIRECTORY']) {
+  if (!loggerSource.includes(token)) throw new Error(`Logger persistente no contiene ${token}.`);
+}
+
+console.log('OK: MCAAS 0.3.0 usa arquitectura foreground con CMD persistente, reinicio automatico y sin WinSW.');

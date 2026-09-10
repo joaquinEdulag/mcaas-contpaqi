@@ -8,6 +8,7 @@ export class IntegrationWorkerService implements OnApplicationBootstrap, OnModul
   private readonly logger = new Logger(IntegrationWorkerService.name);
   private stopped = false;
   private disabledNoticeShown = false;
+  private cycleNumber = 0;
   private readonly stopController = new AbortController();
 
   constructor(
@@ -16,12 +17,17 @@ export class IntegrationWorkerService implements OnApplicationBootstrap, OnModul
   ) {}
 
   onApplicationBootstrap(): void {
+    const config = this.configService.value.sync;
+    this.logger.log(
+      `Worker activo. enabled=${config.enabled}, intervalo=${config.intervalMs} ms, batchSize=${config.batchSize}, maxBatches=${config.maxBatchesPerCycle}.`,
+    );
     void this.loop();
   }
 
   onModuleDestroy(): void {
     this.stopped = true;
     this.stopController.abort();
+    this.logger.log('Worker detenido.');
   }
 
   private async loop(): Promise<void> {
@@ -29,17 +35,20 @@ export class IntegrationWorkerService implements OnApplicationBootstrap, OnModul
 
     while (!this.stopped) {
       const startedAt = Date.now();
+      this.cycleNumber += 1;
 
       if (!config.enabled) {
         if (!this.disabledNoticeShown) {
           this.logger.warn(
-            'SYNC_ENABLED=false. El servicio está vivo, pero la extracción y el envío están desactivados.',
+            'SYNC_ENABLED=false. El proceso está vivo, pero la extracción y el envío están desactivados.',
           );
           this.disabledNoticeShown = true;
         }
       } else {
+        this.logger.log(`Ciclo #${this.cycleNumber}: buscando cambios.`);
         try {
           await this.coordinatorService.runCycle();
+          this.logger.log(`Ciclo #${this.cycleNumber}: terminado en ${Date.now() - startedAt} ms.`);
         } catch (error) {
           this.logger.error(error instanceof Error ? error.stack ?? error.message : String(error));
         }
@@ -47,6 +56,7 @@ export class IntegrationWorkerService implements OnApplicationBootstrap, OnModul
 
       const elapsed = Date.now() - startedAt;
       const waitMs = Math.max(100, config.intervalMs - elapsed);
+      this.logger.debug(`Próxima revisión en ${waitMs} ms.`);
       try {
         await delay(waitMs, undefined, { signal: this.stopController.signal });
       } catch (error) {

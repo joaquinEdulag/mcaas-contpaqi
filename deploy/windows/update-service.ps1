@@ -49,7 +49,8 @@ foreach ($MetadataFile in @('.env.example', 'README.md', 'VERSION')) {
 foreach ($ScriptName in @(
     'install-service.ps1', 'uninstall-service.ps1', 'start-service.ps1',
     'stop-service.ps1', 'status-service.ps1', 'test-config.ps1',
-    'test-connections.ps1', 'update-service.ps1'
+    'test-connections.ps1', 'update-service.ps1', 'run-console.ps1',
+    'run-console.cmd', 'open-live-log.ps1', 'open-live-log.cmd'
 )) {
     $Source = Join-Path $NewRoot $ScriptName
     if (Test-Path $Source) { Copy-Item $Source (Join-Path $Root $ScriptName) -Force }

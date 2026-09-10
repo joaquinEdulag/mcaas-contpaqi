@@ -23,14 +23,17 @@ export class SyncCoordinatorService {
   async runCycle(): Promise<void> {
     const models = this.catalogService.getEnabled();
 
-    if (models.length === 0) return;
+    if (models.length === 0) {
+      this.logger.warn('No hay modelos habilitados para sincronizar.');
+      return;
+    }
 
     for (const model of models) {
       try {
         await this.syncModel(model);
       } catch (error) {
         this.logger.error(
-          `Falló sincronización del modelo ${model.key}: ${error instanceof Error ? error.message : String(error)}`,
+          `Falló sincronización del modelo ${model.key}: ${error instanceof Error ? error.stack ?? error.message : String(error)}`,
         );
       }
     }
@@ -38,6 +41,7 @@ export class SyncCoordinatorService {
 
   private async syncModel(model: ModelDefinition): Promise<void> {
     const syncConfig = this.configService.value.sync;
+    this.logger.log(`Modelo ${model.key}: iniciando revisión de cambios.`);
 
     for (let batchNumber = 1; batchNumber <= syncConfig.maxBatchesPerCycle; batchNumber += 1) {
       const checkpoint = await this.checkpointService.get(model.key, model.initialCursor);
@@ -64,7 +68,12 @@ export class SyncCoordinatorService {
         records,
       };
 
-      // El checkpoint se actualiza SOLAMENTE después de un HTTP 2xx.
+      this.logger.log(
+        `Modelo ${model.key}: lote ${batchNumber}/${syncConfig.maxBatchesPerCycle} preparado. cursor ${String(firstCursor)} -> ${String(lastCursor)}, ${records.length} registro(s), batch=${batchId}.`,
+      );
+
+      // Este puente NO escribe en SQL Server/CONTPAQi. El cambio en la BD destino lo realiza el receiver HTTP.
+      // El checkpoint local se avanza SOLAMENTE después de que el receiver confirme HTTP 2xx.
       await this.destinationApiService.postBatch(model.destinationPath, batch);
       await this.checkpointService.set(model.key, {
         cursor: lastCursor,
@@ -73,11 +82,14 @@ export class SyncCoordinatorService {
       });
 
       this.logger.log(
-        `Modelo ${model.key}: enviados ${records.length} registro(s), cursor ${String(lastCursor)}, batch ${batchId}.`,
+        `Modelo ${model.key}: sincronización confirmada. ${records.length} registro(s) aceptado(s) por receiver, cursor local=${String(lastCursor)}, batch=${batchId}.`,
       );
 
       if (records.length < syncConfig.batchSize) return;
       if (syncConfig.pauseBetweenBatchesMs > 0) {
+        this.logger.debug(
+          `Modelo ${model.key}: pausa de ${syncConfig.pauseBetweenBatchesMs} ms antes del siguiente lote.`,
+        );
         await delay(syncConfig.pauseBetweenBatchesMs);
       }
     }

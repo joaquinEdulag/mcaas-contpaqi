@@ -1,7 +1,7 @@
 <service>
   <id>MCAASContpaqiBridge</id>
   <name>MCAAS - CONTPAQi Bridge</name>
-  <description>Servicio de integración de datos MySQL/CONTPAQi hacia MCAAS por HTTP(S).</description>
+  <description>Servicio de integración de datos SQL Server/CONTPAQi hacia MCAAS por HTTP(S).</description>
 
   <executable>%BASE%\runtime\node.exe</executable>
   <arguments>--env-file=&quot;%BASE%\.env&quot; &quot;%BASE%\app\dist\main.js&quot;</arguments>

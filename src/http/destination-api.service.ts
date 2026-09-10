@@ -29,7 +29,9 @@ export class DestinationApiService {
       throw new Error('DESTINATION_HEALTH_PATH no está configurado; prueba HTTP omitida.');
     }
 
-    const response = await fetch(this.buildUrl(healthPath), {
+    const url = this.buildUrl(healthPath);
+    this.logger.log(`Health HTTP GET ${url}.`);
+    const response = await fetch(url, {
       method: 'GET',
       headers: this.headers(),
       signal: AbortSignal.timeout(this.configService.value.destination.timeoutMs),
@@ -38,6 +40,7 @@ export class DestinationApiService {
     if (!response.ok) {
       throw new Error(`Health HTTP respondió ${response.status} ${response.statusText}.`);
     }
+    this.logger.log(`Health HTTP correcto: ${response.status} ${response.statusText}.`);
   }
 
   async postBatch(destinationPath: string, batch: OutboundBatch): Promise<void> {
@@ -47,6 +50,11 @@ export class DestinationApiService {
 
     for (let attempt = 1; attempt <= config.retryAttempts; attempt += 1) {
       let response: Response;
+      const startedAt = Date.now();
+
+      this.logger.log(
+        `POST ${url} | modelo=${batch.model} | batch=${batch.batchId} | registros=${batch.records.length} | intento=${attempt}/${config.retryAttempts}.`,
+      );
 
       try {
         response = await fetch(url, {
@@ -62,16 +70,29 @@ export class DestinationApiService {
         });
       } catch (error) {
         lastError = error;
+        this.logger.error(
+          `Fallo de red enviando batch ${batch.batchId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
         if (attempt === config.retryAttempts) throw error;
         await this.waitBeforeRetry(attempt, config.retryAttempts);
         continue;
       }
 
-      if (response.ok) return;
+      const responseBody = (await response.text()).slice(0, 2000);
+      const bodyInfo = responseBody ? ` | respuesta=${responseBody}` : '';
 
-      const body = (await response.text()).slice(0, 1000);
-      const error = new Error(`HTTP ${response.status} ${response.statusText}: ${body}`);
+      if (response.ok) {
+        this.logger.log(
+          `Receiver confirmó batch ${batch.batchId}: HTTP ${response.status} ${response.statusText} en ${Date.now() - startedAt} ms${bodyInfo}.`,
+        );
+        return;
+      }
+
+      const error = new Error(`HTTP ${response.status} ${response.statusText}: ${responseBody}`);
       lastError = error;
+      this.logger.error(
+        `Receiver rechazó batch ${batch.batchId}: HTTP ${response.status} ${response.statusText}${bodyInfo}.`,
+      );
 
       if (!this.isRetryableStatus(response.status) || attempt === config.retryAttempts) {
         throw error;
@@ -92,7 +113,7 @@ export class DestinationApiService {
   private headers(): Record<string, string> {
     const config = this.configService.value;
     const headers: Record<string, string> = {
-      'user-agent': 'mcaas-contpaqi/0.1.0',
+      'user-agent': 'mcaas-contpaqi/0.2.0',
       'x-mcaas-source': config.sourceSystem,
       'x-mcaas-instance': config.instanceId,
     };

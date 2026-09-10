@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { readFile } from 'node:fs/promises';
 import { SqlServerService, type SqlServerRow } from '../database/sqlserver.service';
 import type { ModelDefinition } from './model-definition';
@@ -12,6 +12,7 @@ export interface SyncRecord {
 
 @Injectable()
 export class GenericSqlModelService {
+  private readonly logger = new Logger(GenericSqlModelService.name);
   private readonly sqlCache = new Map<string, string>();
 
   constructor(
@@ -25,9 +26,12 @@ export class GenericSqlModelService {
     batchSize: number,
   ): Promise<SyncRecord[]> {
     const query = await this.getSql(model);
+    this.logger.log(
+      `Modelo ${model.key}: leyendo origen desde cursor ${String(cursor)} (máximo ${batchSize} registro(s)).`,
+    );
     const rows = await this.sqlServerService.queryRows<SqlServerRow>(query, cursor, batchSize);
 
-    return rows.map((row, index) => {
+    const records = rows.map((row, index) => {
       const rawCursor = row[model.cursorColumn];
       const rawSourceId = row[model.sourceIdColumn];
 
@@ -49,6 +53,17 @@ export class GenericSqlModelService {
         data: { ...row },
       };
     });
+
+    if (records.length > 0) {
+      const summary = records.map((record) => `${record.sourceId}@${String(record.cursor)}`).join(', ');
+      this.logger.log(`Modelo ${model.key}: filas detectadas [sourceId@cursor]: ${summary}.`);
+
+      if (process.env.LOG_RECORD_PAYLOADS?.trim().toLowerCase() === 'true') {
+        this.logger.debug(`Modelo ${model.key}: payload completo leído: ${JSON.stringify(records)}`);
+      }
+    }
+
+    return records;
   }
 
   private async getSql(model: ModelDefinition): Promise<string> {
@@ -82,6 +97,7 @@ export class GenericSqlModelService {
     }
 
     this.sqlCache.set(model.key, query);
+    this.logger.log(`Modelo ${model.key}: consulta SQL cargada desde ${queryPath}.`);
     return query;
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { AppConfigService } from '../config/config.service';
@@ -16,19 +16,27 @@ interface CheckpointFile {
 
 @Injectable()
 export class CheckpointService {
+  private readonly logger = new Logger(CheckpointService.name);
   private cache?: CheckpointFile;
 
   constructor(private readonly configService: AppConfigService) {}
 
   async get(modelKey: string, initialCursor: string | number): Promise<ModelCheckpoint> {
     const state = await this.load();
-    return state.models[modelKey] ?? { cursor: initialCursor };
+    const checkpoint = state.models[modelKey] ?? { cursor: initialCursor };
+    this.logger.debug(
+      `Checkpoint ${modelKey}: cursor=${String(checkpoint.cursor)}${checkpoint.lastBatchId ? `, lastBatchId=${checkpoint.lastBatchId}` : ''}.`,
+    );
+    return checkpoint;
   }
 
   async set(modelKey: string, checkpoint: ModelCheckpoint): Promise<void> {
     const state = await this.load();
     state.models[modelKey] = checkpoint;
     await this.persist(state);
+    this.logger.log(
+      `Checkpoint actualizado para ${modelKey}: cursor=${String(checkpoint.cursor)}, batch=${checkpoint.lastBatchId ?? '(sin batch)'}.`,
+    );
   }
 
   private async load(): Promise<CheckpointFile> {
@@ -43,10 +51,12 @@ export class CheckpointService {
         throw new Error('Formato de checkpoint inválido.');
       }
       this.cache = parsed;
+      this.logger.log(`Estado de sincronización cargado desde ${path}.`);
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code !== 'ENOENT') throw error;
       this.cache = { version: 1, models: {} };
+      this.logger.warn(`No existe ${path}; se iniciará con los cursores iniciales configurados.`);
     }
 
     return this.cache;
@@ -61,5 +71,6 @@ export class CheckpointService {
     await writeFile(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
     await rename(temporaryPath, path);
     this.cache = state;
+    this.logger.debug(`Estado persistido en ${path}.`);
   }
 }

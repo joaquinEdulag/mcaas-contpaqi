@@ -1,8 +1,8 @@
 {
   "name": "mcaas-contpaqi",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "Servicio Windows de integración SQL Server/CONTPAQi Nóminas hacia una API HTTP(S).",
+  "description": "Bridge de consola persistente SQL Server/CONTPAQi hacia API HTTP(S), administrado en primer plano desde CMD.",
   "main": "dist/main.js",
   "packageManager": "pnpm@11.24.0",
   "engines": {
@@ -24,7 +24,8 @@
     "start:dev": "node --env-file=.env ./node_modules/@nestjs/cli/bin/nest.js start --watch",
     "config:check": "node --env-file=.env dist/commands/check-config.js",
     "connections:test": "node --env-file=.env dist/commands/test-connections.js",
-    "package:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1"
+    "package:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1",
+    "package:windows:configured": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1 -IncludeEnv"
   },
   "dependencies": {
     "@nestjs/common": "12.0.1",

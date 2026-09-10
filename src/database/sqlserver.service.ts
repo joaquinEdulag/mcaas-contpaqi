@@ -37,8 +37,11 @@ export class SqlServerService implements OnModuleDestroy {
   }
 
   async ping(): Promise<void> {
+    const startedAt = Date.now();
+    this.logger.log('Probando conexión SQL Server con SELECT 1.');
     const pool = await this.getPool();
     await pool.request().query('SELECT 1 AS ok');
+    this.logger.log(`SQL Server respondió correctamente en ${Date.now() - startedAt} ms.`);
   }
 
   async queryRows<T extends SqlServerRow = SqlServerRow>(
@@ -57,7 +60,14 @@ export class SqlServerService implements OnModuleDestroy {
     request.input('cursor', sql.BigInt, numericCursor);
     request.input('batchSize', sql.Int, batchSize);
 
+    const startedAt = Date.now();
+    this.logger.log(
+      `Consulta SQL Server iniciada. cursor=${numericCursor}, batchSize=${batchSize}. La base origen es de solo lectura para este puente.`,
+    );
     const result = await request.query<T>(query);
+    this.logger.log(
+      `Consulta SQL Server terminada: ${result.recordset.length} fila(s) leída(s) en ${Date.now() - startedAt} ms.`,
+    );
     return result.recordset;
   }
 
@@ -77,10 +87,25 @@ export class SqlServerService implements OnModuleDestroy {
 
   private async getPool(): Promise<sql.ConnectionPool> {
     if (!this.connectionPromise) {
-      this.connectionPromise = this.pool.connect().catch((error: unknown) => {
-        this.connectionPromise = undefined;
-        throw error;
-      });
+      const config = this.configService.value.sqlServer;
+      const target = config.instanceName
+        ? `${config.host}\\${config.instanceName}`
+        : `${config.host}${config.port ? `:${config.port}` : ''}`;
+      this.logger.log(`Abriendo conexión SQL Server a ${target}, base=${config.database}.`);
+
+      this.connectionPromise = this.pool
+        .connect()
+        .then((pool) => {
+          this.logger.log('Conexión SQL Server establecida.');
+          return pool;
+        })
+        .catch((error: unknown) => {
+          this.connectionPromise = undefined;
+          this.logger.error(
+            `Falló la conexión SQL Server: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          throw error;
+        });
     }
     return this.connectionPromise;
   }
