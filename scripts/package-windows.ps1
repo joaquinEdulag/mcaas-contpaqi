@@ -54,7 +54,7 @@ if (Test-Path (Join-Path $Root 'pnpm-lock.yaml')) {
 Push-Location (Join-Path $Stage 'app')
 try {
     if (Test-Path 'pnpm-lock.yaml') {
-        pnpm install --prod --frozen-lockfile --config.node-linker=hoisted
+        pnpm install --prod --no-frozen-lockfile --config.node-linker=hoisted
     } else {
         pnpm install --prod --no-frozen-lockfile --config.node-linker=hoisted
     }

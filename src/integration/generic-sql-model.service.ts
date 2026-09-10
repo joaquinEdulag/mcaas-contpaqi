@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { readFile } from 'node:fs/promises';
-import type { RowDataPacket } from 'mysql2/promise';
-import { MysqlService } from '../database/mysql.service';
+import { SqlServerService, type SqlServerRow } from '../database/sqlserver.service';
 import type { ModelDefinition } from './model-definition';
 import { ModelCatalogService } from './model-catalog.service';
 
@@ -16,7 +15,7 @@ export class GenericSqlModelService {
   private readonly sqlCache = new Map<string, string>();
 
   constructor(
-    private readonly mysqlService: MysqlService,
+    private readonly sqlServerService: SqlServerService,
     private readonly catalogService: ModelCatalogService,
   ) {}
 
@@ -25,12 +24,12 @@ export class GenericSqlModelService {
     cursor: string | number,
     batchSize: number,
   ): Promise<SyncRecord[]> {
-    const sql = await this.getSql(model);
-    const rows = await this.mysqlService.queryRows<RowDataPacket>(sql, [cursor, batchSize]);
+    const query = await this.getSql(model);
+    const rows = await this.sqlServerService.queryRows<SqlServerRow>(query, cursor, batchSize);
 
     return rows.map((row, index) => {
-      const rawCursor = row[model.cursorColumn] as unknown;
-      const rawSourceId = row[model.sourceIdColumn] as unknown;
+      const rawCursor = row[model.cursorColumn];
+      const rawSourceId = row[model.sourceIdColumn];
 
       if (typeof rawCursor !== 'string' && typeof rawCursor !== 'number') {
         throw new Error(
@@ -57,21 +56,32 @@ export class GenericSqlModelService {
     if (cached) return cached;
 
     const queryPath = this.catalogService.resolveQueryPath(model.queryFile);
-    const sql = (await readFile(queryPath, 'utf8')).trim();
-    const withoutLeadingComments = sql.replace(/^(?:\s*--[^\n]*\n|\s*\/\*[\s\S]*?\*\/\s*)+/g, '').trim();
+    const query = (await readFile(queryPath, 'utf8')).trim();
+    const withoutLeadingComments = query
+      .replace(/^(?:\s*--[^\n]*\n|\s*\/\*[\s\S]*?\*\/\s*)+/g, '')
+      .trim();
 
     if (!/^(SELECT|WITH)\b/i.test(withoutLeadingComments)) {
       throw new Error(`La consulta de ${model.key} debe iniciar con SELECT o WITH.`);
     }
 
-    const parameterCount = (sql.match(/\?/g) ?? []).length;
-    if (parameterCount !== 2) {
+    const codeOnly = query
+      .replace(/--[^\n]*/g, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+
+    if (!/@cursor\b/i.test(codeOnly) || !/@batchSize\b/i.test(codeOnly)) {
       throw new Error(
-        `La consulta de ${model.key} debe contener exactamente 2 parámetros ?: cursor y batchSize. Encontrados: ${parameterCount}.`,
+        `La consulta de ${model.key} debe utilizar los parámetros @cursor y @batchSize.`,
       );
     }
 
-    this.sqlCache.set(model.key, sql);
-    return sql;
+    if (/\?(?!\?)/.test(codeOnly)) {
+      throw new Error(
+        `La consulta de ${model.key} todavía contiene parámetros ? de MySQL. Usa @cursor y @batchSize para SQL Server.`,
+      );
+    }
+
+    this.sqlCache.set(model.key, query);
+    return query;
   }
 }

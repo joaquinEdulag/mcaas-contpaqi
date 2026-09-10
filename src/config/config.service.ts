@@ -6,9 +6,7 @@ import type { AppConfig, DestinationAuthMode } from './config.types';
 
 function required(name: string): string {
   const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(`Falta la variable obligatoria ${name}.`);
-  }
+  if (!value) throw new Error(`Falta la variable obligatoria ${name}.`);
   return value;
 }
 
@@ -32,11 +30,19 @@ function optionalSecret(name: string): string | undefined {
 function integer(name: string, fallback: number, min: number, max: number): number {
   const raw = process.env[name]?.trim();
   const value = raw ? Number(raw) : fallback;
-
   if (!Number.isInteger(value) || value < min || value > max) {
     throw new Error(`${name} debe ser un entero entre ${min} y ${max}.`);
   }
+  return value;
+}
 
+function optionalInteger(name: string, min: number, max: number): number | undefined {
+  const raw = process.env[name]?.trim();
+  if (!raw) return undefined;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`${name} debe ser un entero entre ${min} y ${max}.`);
+  }
   return value;
 }
 
@@ -91,6 +97,14 @@ export class AppConfigService {
       throw new Error('DESTINATION_API_KEY_HEADER no es un nombre de header HTTP válido.');
     }
 
+    const sqlServerPort = optionalInteger('SQLSERVER_PORT', 1, 65535);
+    const sqlServerInstance = optional('SQLSERVER_INSTANCE') || undefined;
+    if (sqlServerPort && sqlServerInstance) {
+      throw new Error(
+        'Configura SQLSERVER_PORT o SQLSERVER_INSTANCE, pero no ambos. Para CONTPAQi/COMPAC deja SQLSERVER_PORT vacío.',
+      );
+    }
+
     const instanceId = optional('INSTANCE_ID', hostname());
     const allowlist = optional('SYNC_MODELS')
       .split(',')
@@ -102,17 +116,20 @@ export class AppConfigService {
       appName: optional('APP_NAME', 'MCAAS CONTPAQi Bridge'),
       instanceId,
       sourceSystem: optional('SOURCE_SYSTEM', 'CONTPAQI'),
-      mysql: {
-        host: required('MYSQL_HOST'),
-        port: integer('MYSQL_PORT', 3306, 1, 65535),
-        database: required('MYSQL_DATABASE'),
-        user: required('MYSQL_USER'),
-        password: requiredSecret('MYSQL_PASSWORD'),
-        connectionLimit: integer('MYSQL_CONNECTION_LIMIT', 5, 1, 50),
-        connectTimeoutMs: integer('MYSQL_CONNECT_TIMEOUT_MS', 10000, 1000, 120000),
-        ssl: booleanValue('MYSQL_SSL', false),
-        sslCaPath: optional('MYSQL_SSL_CA_PATH') || undefined,
-        sslRejectUnauthorized: booleanValue('MYSQL_SSL_REJECT_UNAUTHORIZED', true),
+      sqlServer: {
+        host: required('SQLSERVER_HOST'),
+        port: sqlServerPort,
+        instanceName: sqlServerInstance,
+        database: required('SQLSERVER_DATABASE'),
+        user: required('SQLSERVER_USER'),
+        password: requiredSecret('SQLSERVER_PASSWORD'),
+        poolMax: integer('SQLSERVER_POOL_MAX', 5, 1, 50),
+        poolMin: integer('SQLSERVER_POOL_MIN', 0, 0, 20),
+        poolIdleTimeoutMs: integer('SQLSERVER_POOL_IDLE_TIMEOUT_MS', 30000, 1000, 600000),
+        connectTimeoutMs: integer('SQLSERVER_CONNECT_TIMEOUT_MS', 15000, 1000, 120000),
+        requestTimeoutMs: integer('SQLSERVER_REQUEST_TIMEOUT_MS', 30000, 1000, 300000),
+        encrypt: booleanValue('SQLSERVER_ENCRYPT', false),
+        trustServerCertificate: booleanValue('SQLSERVER_TRUST_SERVER_CERTIFICATE', true),
       },
       destination: {
         baseUrl: parsedUrl.toString(),
@@ -129,8 +146,8 @@ export class AppConfigService {
       sync: {
         enabled: booleanValue('SYNC_ENABLED', false),
         intervalMs: integer('SYNC_INTERVAL_MS', 30000, 1000, 86400000),
-        batchSize: integer('SYNC_BATCH_SIZE', 100, 1, 5000),
-        maxBatchesPerCycle: integer('SYNC_MAX_BATCHES_PER_CYCLE', 10, 1, 1000),
+        batchSize: integer('SYNC_BATCH_SIZE', 5, 1, 5000),
+        maxBatchesPerCycle: integer('SYNC_MAX_BATCHES_PER_CYCLE', 1, 1, 1000),
         pauseBetweenBatchesMs: integer('SYNC_PAUSE_BETWEEN_BATCHES_MS', 250, 0, 60000),
         modelAllowlist: allowlist,
       },
@@ -148,13 +165,15 @@ export class AppConfigService {
       appName: config.appName,
       instanceId: config.instanceId,
       sourceSystem: config.sourceSystem,
-      mysql: {
-        host: config.mysql.host,
-        port: config.mysql.port,
-        database: config.mysql.database,
-        user: config.mysql.user,
+      sqlServer: {
+        host: config.sqlServer.host,
+        port: config.sqlServer.port ?? '(dinámico por instancia)',
+        instanceName: config.sqlServer.instanceName ?? '(sin instancia)',
+        database: config.sqlServer.database,
+        user: config.sqlServer.user,
         password: '***',
-        ssl: config.mysql.ssl,
+        encrypt: config.sqlServer.encrypt,
+        trustServerCertificate: config.sqlServer.trustServerCertificate,
       },
       destination: {
         baseUrl: config.destination.baseUrl,

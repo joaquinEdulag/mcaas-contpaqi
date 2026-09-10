@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '../config/config.module';
-import { MysqlService } from './mysql.service';
+import { SqlServerService } from './sqlserver.service';
 
 @Module({
   imports: [ConfigModule],
-  providers: [MysqlService],
-  exports: [MysqlService],
+  providers: [SqlServerService],
+  exports: [SqlServerService],
 })
 export class DatabaseModule {}

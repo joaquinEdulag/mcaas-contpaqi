@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigModule } from '../config/config.module';
 import { DatabaseModule } from '../database/database.module';
-import { MysqlService } from '../database/mysql.service';
+import { SqlServerService } from '../database/sqlserver.service';
 import { DestinationApiService } from '../http/destination-api.service';
 import { HttpModule } from '../http/http.module';
 
@@ -18,20 +18,20 @@ async function main(): Promise<void> {
   });
 
   try {
-    const mysql = app.get(MysqlService);
+    const sqlServer = app.get(SqlServerService);
     const destination = app.get(DestinationApiService);
 
-    await mysql.ping();
+    await sqlServer.ping();
     // eslint-disable-next-line no-console
-    console.log('OK MySQL: conexión y SELECT 1 correctos.');
+    console.log('OK SQL Server: conexión y SELECT 1 correctos.');
 
     try {
       await destination.ping();
       // eslint-disable-next-line no-console
-      console.log('OK HTTP: endpoint de health respondió 2xx.');
+      console.log('OK HTTP/HTTPS: endpoint de health respondió 2xx.');
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.warn(`ADVERTENCIA HTTP: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn(`ADVERTENCIA HTTP/HTTPS: ${error instanceof Error ? error.message : String(error)}`);
     }
   } finally {
     await app.close();

@@ -5,17 +5,20 @@ export interface AppConfig {
   appName: string;
   instanceId: string;
   sourceSystem: string;
-  mysql: {
+  sqlServer: {
     host: string;
-    port: number;
+    port?: number;
+    instanceName?: string;
     database: string;
     user: string;
     password: string;
-    connectionLimit: number;
+    poolMax: number;
+    poolMin: number;
+    poolIdleTimeoutMs: number;
     connectTimeoutMs: number;
-    ssl: boolean;
-    sslCaPath?: string;
-    sslRejectUnauthorized: boolean;
+    requestTimeoutMs: number;
+    encrypt: boolean;
+    trustServerCertificate: boolean;
   };
   destination: {
     baseUrl: string;

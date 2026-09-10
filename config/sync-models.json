@@ -1,12 +1,12 @@
 [
   {
-    "key": "prueba",
+    "key": "employees",
     "enabled": true,
     "schemaVersion": 1,
     "destinationPath": "/",
-    "queryFile": "queries/example-customers.sql",
-    "cursorColumn": "id",
-    "sourceIdColumn": "id",
+    "queryFile": "queries/employees.sql",
+    "cursorColumn": "cursor_id",
+    "sourceIdColumn": "numero_empleado",
     "initialCursor": 0
   }
 ]
